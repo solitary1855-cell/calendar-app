@@ -1,5 +1,5 @@
 // 離線快取：先用網路，沒網路時用快取
-const CACHE = 'hizi-v9';
+const CACHE = 'hizi-v10';
 const FILES = ['./', './index.html', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -10,6 +10,9 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const u = new URL(e.request.url);
+  // Google 登入與 API 不經過快取，只快取本站檔案與字型
+  if (u.origin !== location.origin && !/fonts\.(googleapis|gstatic)\.com$/.test(u.hostname)) return;
   e.respondWith(
     fetch(e.request).then(res => {
       const copy = res.clone();

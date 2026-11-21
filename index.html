@@ -188,6 +188,19 @@ textarea.inp{min-height:70px;resize:vertical}
   .month-layout{display:grid;grid-template-columns:1fr 300px;gap:0;align-items:start}
   .month-layout .agenda{border-top:0;border-left:1px solid var(--line);min-height:100%}
 }
+/* Google 同步 */
+.title .small{display:flex;align-items:center;gap:6px}
+.syncpill{display:inline-flex;align-items:center;gap:2px;font-size:10px;color:var(--sub);padding:1px 6px 1px 3px;border-radius:9px;background:var(--paper2);line-height:16px}
+.syncpill svg{width:14px;height:14px}
+.syncpill[hidden]{display:none}
+.syncpill.syncing svg{animation:spin 1.2s linear infinite}
+.syncpill.auth,.syncpill.error{color:var(--red)}
+.syncpill.offline{color:var(--faint)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.gbanner{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 4px 10px;padding:9px 12px;border-radius:12px;background:var(--delbg);color:var(--red);font-size:13px}
+.gbanner[hidden]{display:none}
+.gbanner button{background:var(--red);color:#fff;border-radius:12px;padding:5px 12px;font-size:13px;flex:0 0 auto}
+.setsec{font-size:12px;color:var(--sub);letter-spacing:.1em;padding:18px 0 2px}
 /* 分類 */
 .chip.addchip{border-style:dashed;color:var(--blue);border-color:var(--blue)}
 .catnew{margin-top:10px;padding:12px;border-radius:14px;background:var(--paper2)}
@@ -254,7 +267,7 @@ body.dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
   <header>
     <div class="title" id="titleBox">
       <button class="ibtn" id="prev" aria-label="上一頁">‹</button>
-      <div><div class="big" id="tBig"></div><div class="small" id="tSmall"></div></div>
+      <div><div class="big" id="tBig"></div><div class="small"><span id="tSmall"></span><button class="syncpill" id="syncBtn" hidden></button></div></div>
       <button class="ibtn" id="next" aria-label="下一頁">›</button>
     </div>
     <div class="hbtns">
@@ -267,6 +280,7 @@ body.dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
   <div class="greet" id="greet"></div>
   <nav class="tabs" id="tabs"><button data-v="month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><circle cx="8" cy="13.5" r=".9" fill="currentColor"/><circle cx="12" cy="13.5" r=".9" fill="currentColor"/><circle cx="16" cy="13.5" r=".9" fill="currentColor"/><circle cx="8" cy="17" r=".9" fill="currentColor"/></svg>月</button><button data-v="week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M9.2 9.5V20M14.8 9.5V20"/></svg>週</button><button data-v="day"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17"/><text x="12" y="17.6" text-anchor="middle" font-size="7" fill="currentColor" stroke="none">日</text></svg>日</button><button data-v="list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7h11M9 12h11M9 17h11"/><circle cx="5" cy="7" r="1.1" fill="currentColor"/><circle cx="5" cy="12" r="1.1" fill="currentColor"/><circle cx="5" cy="17" r="1.1" fill="currentColor"/></svg>清單</button><button data-v="tt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9h17M3.5 14.5h17M9.5 4.5v16"/></svg>課表</button><button data-v="todo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M8 12.2l2.8 2.8L16.5 9"/></svg>待辦</button></nav>
   <div class="cd-strip" id="cdStrip"></div>
+  <div class="gbanner" id="gBanner" hidden><span>Google 登入已過期，同步暫停中</span><button id="gBannerBtn">重新連線</button></div>
   <main id="main"></main>
   <div class="foot" id="foot"></div>
 </div>
@@ -342,8 +356,15 @@ let events = load(KEY, null);
 let settings = Object.assign({weekStart:1, lunar:true, theme:'auto', ttCat:'kid'}, load(SKEY,{}));
 function syncCats(){ if(!Array.isArray(settings.cats)||!settings.cats.length) settings.cats = DEFAULT_CATS.map(c=>({id:c.id,name:c.name,c:c.c})); CATS = settings.cats; }
 syncCats();
+// Google 同步狀態（要放在 save() 第一次被呼叫之前）
+const G_CLIENT_ID = '';   // ← 在 Google Cloud 建好後填入「用戶端 ID」
+const GK={tok:'hizi.g.token', st:'hizi.g.state', sh:'hizi.g.shadow'};
+let gState = load(GK.st, {});
+let gShadow = load(GK.sh, {ev:{},td:{}});
+let gTok = load(GK.tok, null);
 function load(k,def){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch(e){ return def; } }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(events)); localStorage.setItem(SKEY, JSON.stringify(settings)); }catch(e){ toast('儲存失敗：瀏覽器空間不足'); } }
+function persistEvents(){ try{ localStorage.setItem(KEY, JSON.stringify(events)); localStorage.setItem(SKEY, JSON.stringify(settings)); }catch(e){ toast('儲存失敗：瀏覽器空間不足'); } }
+function save(){ persistEvents(); if(typeof scheduleSync==='function') scheduleSync(); }
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 
 const TKEY='hizi.todos.v1';
@@ -356,7 +377,8 @@ if(!todos){ const t=new Date(), d=n=>ymd(addDays(t,n));
          {id:uid(),text:'買孩子的美勞材料',due:null,time:'',done:false,created:Date.now()+3,demo:1},
          {id:uid(),text:'換機車機油',due:null,time:'',done:true,doneAt:Date.now(),created:Date.now()+4,demo:1}];
   saveTodos(); }
-function saveTodos(){ try{ localStorage.setItem(TKEY, JSON.stringify(todos)); }catch(e){ toast('儲存失敗'); } }
+function persistTodos(){ try{ localStorage.setItem(TKEY, JSON.stringify(todos)); }catch(e){ toast('儲存失敗'); } }
+function saveTodos(){ persistTodos(); if(typeof scheduleSync==='function') scheduleSync(); }
 const todosOn = d => { const k=ymd(d); return todos.filter(x=>x.due===k).sort((a,b)=>a.done-b.done||(a.time||'99').localeCompare(b.time||'99')); };
 function demoEvents(){
   const t = new Date(), T = ymd(t), d = n => ymd(addDays(t,n));
@@ -399,6 +421,7 @@ function occursOn(ev, d){
   const r = ev.repeat || {type:'none'};
   if(r.until && k > r.until) return false;
   if(ev.ex && ev.ex.includes(k)) return false;
+  if(ev.rex && ev.rex.includes(k)) return false;
   const s = parse(ev.date);
   switch(r.type){
     case 'daily': return true;
@@ -876,12 +899,14 @@ function openSettings(){
     <div class="setrow"><span>顯示農曆</span><button class="tog ${settings.lunar?'on':''}" id="sLunar"></button></div>
     <div class="setrow"><span>一週從星期一開始</span><button class="tog ${settings.weekStart===1?'on':''}" id="sWeek"></button></div>
     <div class="setrow"><span>提醒通知</span><button class="txtbtn" id="sNoti">${notiState()}</button></div>
+    ${gSettingsHTML()}
     <div class="setrow"><span>匯出備份</span><button class="txtbtn" id="sExp">下載檔案</button></div>
     <div class="setrow"><span>匯入備份</span><button class="txtbtn" id="sImp">選擇檔案</button><input type="file" id="impFile" accept=".json,application/json" hidden></div>
     ${demoN?`<div class="setrow"><span>範例資料（${demoN} 筆）</span><button class="txtbtn" id="sDemo" style="color:var(--rose)">全部清除</button></div>`:''}
-    <p class="hint" style="margin-top:14px">長按行程（電腦上直接按住）就可以拖曳到別的日期或時間。<br>資料目前存在這台裝置的瀏覽器裡。換裝置時可用「匯出／匯入備份」搬資料；下一版會接上 Google 日曆，手機和平板就能自動同步。<br>共 ${events.length} 筆行程。</p>`;
+    <p class="hint" style="margin-top:14px">長按行程（電腦上直接按住）就可以拖曳到別的日期或時間。<br>${gState.on?'行程存在 Google 日曆「日子」、待辦存在 Google Tasks「日子」清單，手機、平板、電腦會自動同步。':'目前資料只存在這台裝置。連上 Google 後，手機、平板、電腦就能自動同步。'}<br>共 ${events.length} 筆行程。</p>`;
   $('#cl').onclick=closeSheet;
   $('#sCats').onclick=openCatManager;
+  bindGSettings();
   $('#sLunar').onclick=e=>{ settings.lunar=!settings.lunar; e.target.classList.toggle('on'); save(); render(); };
   document.querySelectorAll('#sTheme button').forEach(b=>b.onclick=()=>{ settings.theme=b.dataset.v; save(); applyTheme(); document.querySelectorAll('#sTheme button').forEach(x=>x.classList.toggle('on',x===b)); });
   $('#sWeek').onclick=e=>{ settings.weekStart=settings.weekStart===1?0:1; e.target.classList.toggle('on'); save(); render(); };
@@ -891,6 +916,37 @@ function openSettings(){
   $('#impFile').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; try{ const j=JSON.parse(await f.text()); if(!Array.isArray(j.events)) throw 0; events=j.events; if(Array.isArray(j.todos)){ todos=j.todos; saveTodos(); } if(j.settings) settings=Object.assign(settings,j.settings); syncCats(); save(); applyTheme(); closeSheet(); render(); toast(`已匯入 ${events.length} 筆行程、${todos.length} 筆待辦`); }catch(err){ toast('檔案格式不正確'); } };
   if(demoN) $('#sDemo').onclick=()=>{ events=events.filter(e=>!e.demo); todos=todos.filter(x=>!x.demo); saveTodos(); save(); closeSheet(); render(); toast('範例已清除'); };
   openSheet();
+}
+
+function gSettingsHTML(){
+  if(gClientId()) loadGIS().catch(()=>{});
+  const last = gState.lastSync ? new Date(gState.lastSync) : null;
+  const lastTx = last ? `${last.getMonth()+1}/${last.getDate()} ${pad(last.getHours())}:${pad(last.getMinutes())}` : '尚未同步';
+  if(gState.on) return `<div class="setsec">Google 同步</div>
+    <div class="setrow"><span>狀態</span><span class="hint" style="font-size:13px">${{ok:'✓ 已同步',syncing:'同步中…',auth:'需要重新登入',offline:'離線中（連網後自動同步）',error:'同步失敗'}[gStatus]||'已連線'} · ${lastTx}</span></div>
+    ${gStatus==='error'&&gErr?`<p class="hint" style="color:var(--red)">${esc(gErr)}</p>`:''}
+    <div class="setrow"><span>立即同步</span><button class="txtbtn" id="gNow">同步</button></div>
+    <div class="setrow"><span>Google 登入</span><button class="txtbtn" id="gRe">重新連線</button></div>
+    <div class="setrow"><span>中斷連線</span><button class="txtbtn" id="gOff" style="color:var(--red)">中斷</button></div>`;
+  return `<div class="setsec">Google 同步</div>
+    ${G_CLIENT_ID?'':`<div class="f"><label class="l">Google 用戶端 ID</label><input class="inp" id="gCid" placeholder="xxxx.apps.googleusercontent.com" value="${esc(gState.clientId||'')}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>`}
+    <button class="addcat" id="gGo" style="border-style:solid">連線 Google 日曆與待辦</button>
+    <p class="hint">會在你的 Google 帳號建立「日子」日曆和「日子」待辦清單。這台裝置的範例資料會被清除，你自己新增的行程與待辦會一起上傳。</p>`;
+}
+function bindGSettings(){
+  const cid=$('#gCid'); if(cid){ cid.onchange=cid.onblur=()=>{ gState.clientId=cid.value.trim(); gSaveState(); if(gClientId()) loadGIS().catch(()=>{}); }; }
+  const go=$('#gGo'); if(go) go.onclick=async()=>{
+    if(cid){ gState.clientId=cid.value.trim(); gSaveState(); }
+    if(!gClientId()){ toast('請先填入用戶端 ID'); return; }
+    try{ await gLogin(); closeSheet(); await gConnect(); }
+    catch(e){ if(/載入/.test(e.message)){ toast(e.message); return; } toast(e.message+'，改用跳轉方式登入…',2500); setTimeout(()=>gRedirectLogin(false),1200); }
+  };
+  if($('#gNow')) $('#gNow').onclick=()=>{ closeSheet(); if(!gTokValid()){ gReauth(); return; } gSync().then(()=>toast(gStatus==='ok'?'同步完成':'同步失敗：'+gErr)); };
+  if($('#gRe')) $('#gRe').onclick=()=>{ closeSheet(); gReauth(); };
+  if($('#gOff')) $('#gOff').onclick=e=>{
+    const b=e.currentTarget; if(b.dataset.c!=='1'){ b.dataset.c='1'; b.textContent='再按一次確認'; return; }
+    gDisconnect(); closeSheet(); render(); toast('已中斷 Google 同步，資料保留在這台裝置');
+  };
 }
 
 /* ========= 提醒通知（App 開著時） ========= */
@@ -908,6 +964,7 @@ function checkReminders(){
   [0,1].forEach(off=>{ const d=addDays(today(),off);
     eventsOn(d).forEach(e=>{
       if(e.remind==null||e.remind<0) return;
+      if(gState.on && e.gid) return;   // 已同步到 Google 的行程由 Google 發通知
       const base = new Date(d); if(e.allDay) base.setHours(9,0,0,0); else { const m=toMin(e.start); base.setHours(Math.floor(m/60),m%60,0,0); }
       const at = new Date(base.getTime()-e.remind*60000), k=e.id+'@'+ymd(d);
       if(now>=at && now-at<6*3600000 && !fired[k]){ fired[k]=1; notify(e.title, e.allDay?`${d.getMonth()+1}/${d.getDate()} 全天`:`${d.getMonth()+1}/${d.getDate()} ${e.start}${e.location?' · '+e.location:''}`); }
@@ -989,7 +1046,7 @@ function applyMove(ev,from,to,start,end){
   const rec = ev.repeat && ev.repeat.type!=='none';
   if(rec){   // 重複行程：只移動這一次
     ev.ex=[...(ev.ex||[]),from];
-    const c=JSON.parse(JSON.stringify(ev)); c.id=uid(); c.repeat={type:'none'}; delete c.ex;
+    const c=JSON.parse(JSON.stringify(ev)); c.id=uid(); c.repeat={type:'none'}; delete c.ex; delete c.gid; delete c.inst; delete c.rex;
     Object.assign(c,{date:to,start,end}); events.push(c);
   } else Object.assign(ev,{date:to,start,end});
   save(); sel=parse(to); render();
@@ -1016,6 +1073,287 @@ document.addEventListener('click',e=>{ if(justDragged && !e.target.closest('#toa
 document.addEventListener('contextmenu',e=>{ if(e.target.closest('[data-eid]')) e.preventDefault(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') endDrag(true); });
 
+/* ========= Google 同步（日曆＋Tasks） ========= */
+const G_SCOPES = 'https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/tasks';
+const TZ = (()=>{ try{ return Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Taipei'; }catch(e){ return 'Asia/Taipei'; } })();
+const GCOLORS={1:'#a4bdfc',2:'#7ae7bf',3:'#dbadff',4:'#ff887c',5:'#fbd75b',6:'#ffb878',7:'#46d6db',8:'#e1e1e1',9:'#5484ed',10:'#51b749',11:'#dc2127'};
+const gClientId = () => (G_CLIENT_ID || gState.clientId || '').trim();
+const gTokValid = () => !!(gTok && gTok.exp > Date.now()+60000);
+const isStandalone = () => (navigator.standalone===true) || matchMedia('(display-mode: standalone)').matches;
+function gSaveState(){ try{ localStorage.setItem(GK.st, JSON.stringify(gState)); localStorage.setItem(GK.sh, JSON.stringify(gShadow)); }catch(e){} }
+function gSaveTok(){ try{ gTok?localStorage.setItem(GK.tok, JSON.stringify(gTok)):localStorage.removeItem(GK.tok); }catch(e){} }
+function hexRGB(h){ const n=parseInt(String(h).slice(1),16); return [n>>16&255,n>>8&255,n&255]; }
+function cdist(a,b){ const x=hexRGB(a), y=hexRGB(b); return (x[0]-y[0])**2+(x[1]-y[1])**2+(x[2]-y[2])**2; }
+function colorIdFor(catId){ const c=catOf(catId).c; let best='1',bd=1e9; for(const [id,h] of Object.entries(GCOLORS)){ const d=cdist(c,h); if(d<bd){bd=d;best=id;} } return best; }
+function catForColorId(cid){ if(!cid||!GCOLORS[cid]) return CATS[0].id; let best=CATS[0].id,bd=1e9; CATS.forEach(c=>{ const d=cdist(c.c,GCOLORS[cid]); if(d<bd){bd=d;best=c.id;} }); return best; }
+
+/* ---- 登入 ---- */
+let gisPromise=null;
+function loadGIS(){
+  if(window.google&&google.accounts&&google.accounts.oauth2) return Promise.resolve();
+  if(gisPromise) return gisPromise;
+  gisPromise=new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://accounts.google.com/gsi/client'; s.async=true; s.onload=()=>res(); s.onerror=()=>{ gisPromise=null; rej(new Error('無法載入 Google 登入元件')); }; document.head.appendChild(s); });
+  return gisPromise;
+}
+function gLogin(){ // 需在點擊事件中呼叫（彈出 Google 登入視窗）
+  return new Promise((res,rej)=>{
+    if(!gClientId()){ rej(new Error('尚未設定用戶端 ID')); return; }
+    if(!(window.google&&google.accounts&&google.accounts.oauth2)){ loadGIS().catch(()=>{}); rej(new Error('Google 登入元件還在載入，請再按一次')); return; }
+    const tc=google.accounts.oauth2.initTokenClient({client_id:gClientId(), scope:G_SCOPES, prompt:'',
+      callback:r=>{
+        if(r.error){ rej(new Error(r.error)); return; }
+        if(!google.accounts.oauth2.hasGrantedAllScopes(r, ...G_SCOPES.split(' '))){ rej(new Error('需要勾選所有權限（日曆與 Tasks）才能同步')); return; }
+        gTok={t:r.access_token, exp:Date.now()+(+r.expires_in||3600)*1000}; gSaveTok(); res();
+      },
+      error_callback:e=>rej(new Error(e&&e.type==='popup_closed'?'登入視窗已關閉':'登入視窗無法開啟')) });
+    tc.requestAccessToken();
+  });
+}
+function gRedirectLogin(silent){ // 整頁跳轉登入（彈出視窗不能用時的備案）
+  const st=uid(); try{ localStorage.setItem('hizi.g.oauth', JSON.stringify({st, silent:!!silent, connect:!gState.on, t:Date.now()})); }catch(e){}
+  const q=new URLSearchParams({client_id:gClientId(), redirect_uri:location.origin+location.pathname, response_type:'token', scope:G_SCOPES, include_granted_scopes:'true', state:st});
+  if(silent) q.set('prompt','none');
+  location.href='https://accounts.google.com/o/oauth2/v2/auth?'+q;
+}
+let gPendingConnect=false;
+function gHandleRedirect(){
+  const h=location.hash; if(!/access_token=|error=/.test(h)) return;
+  const p=new URLSearchParams(h.slice(1)); history.replaceState(null,'',location.pathname+location.search);
+  const o=load('hizi.g.oauth',null); try{ localStorage.removeItem('hizi.g.oauth'); }catch(e){}
+  if(!o || p.get('state')!==o.st || Date.now()-o.t>600000) return;
+  if(p.get('access_token')){ gTok={t:p.get('access_token'), exp:Date.now()+(+p.get('expires_in')||3600)*1000}; gSaveTok(); if(o.connect) gPendingConnect=true; }
+  else if(!o.silent) setTimeout(()=>toast('Google 登入沒有完成：'+p.get('error')),500);
+}
+
+/* ---- API ---- */
+async function gapi(method,url,body){
+  if(!gTokValid()) throw Object.assign(new Error('需要重新登入 Google'),{auth:true});
+  let res;
+  try{ res=await fetch(url,{method,headers:Object.assign({Authorization:'Bearer '+gTok.t}, body?{'Content-Type':'application/json'}:{}), body:body?JSON.stringify(body):undefined}); }
+  catch(e){ throw Object.assign(new Error('目前沒有網路'),{offline:true}); }
+  if(res.status===401){ gTok=null; gSaveTok(); throw Object.assign(new Error('需要重新登入 Google'),{auth:true}); }
+  if(!res.ok){ let m=''; try{ m=(await res.json()).error.message; }catch(e){} throw Object.assign(new Error(m||('Google 回應錯誤 '+res.status)),{status:res.status}); }
+  const tx=await res.text(); return tx?JSON.parse(tx):null;
+}
+const CAL_API='https://www.googleapis.com/calendar/v3', TASK_API='https://tasks.googleapis.com/tasks/v1';
+
+/* ---- 行程 ⇄ Google 事件 ---- */
+function normEv(e){ return JSON.stringify([e.title,e.date,!!e.allDay,e.allDay?'':e.start,e.allDay?'':e.end,e.location||'',e.note||'',e.cat,e.kind||'normal',e.remind??-1,e.repeat||{type:'none'},e.ex||[],colorIdFor(e.cat)]); }
+const BYD=['SU','MO','TU','WE','TH','FR','SA'];
+function toGoogle(e){
+  const r=e.repeat||{type:'none'};
+  const g={summary:e.title, location:e.location||'', description:e.note||'', colorId:colorIdFor(e.cat),
+    extendedProperties:{private:{hiziCat:e.cat, hiziKind:e.kind||'normal'}},
+    reminders:(e.remind!=null&&e.remind>=0)?{useDefault:false,overrides:[{method:'popup',minutes:Math.min(e.remind,40320)}]}:{useDefault:false,overrides:[]}};
+  let d=e.date;
+  const days=(r.days&&r.days.length)?r.days:[parse(e.date).getDay()];
+  if(r.type==='weekly'){ let x=parse(e.date); for(let i=0;i<7&&!days.includes(x.getDay());i++) x=addDays(x,1); d=ymd(x); }
+  if(e.allDay){ g.start={date:d}; g.end={date:ymd(addDays(parse(d),1))}; }
+  else { const s=e.start||'09:00'; let en=e.end||s; if(toMin(en)<=toMin(s)) en=fmtMin(Math.min(toMin(s)+30,23*60+59)); g.start={dateTime:`${d}T${s}:00`,timeZone:TZ}; g.end={dateTime:`${d}T${en}:00`,timeZone:TZ}; }
+  if(r.type!=='none'){
+    let rule='RRULE:FREQ='+{daily:'DAILY',weekly:'WEEKLY',monthly:'MONTHLY',yearly:'YEARLY'}[r.type];
+    if(r.type==='weekly') rule+=';BYDAY='+days.map(i=>BYD[i]).join(',');
+    if(r.until){ if(e.allDay) rule+=';UNTIL='+r.until.replace(/-/g,''); else { const u=parse(r.until); u.setHours(23,59,59); rule+=';UNTIL='+u.toISOString().replace(/[-:]/g,'').replace(/\.\d+/,''); } }
+    g.recurrence=[rule];
+    if(e.ex&&e.ex.length) g.recurrence.push(e.allDay ? 'EXDATE;VALUE=DATE:'+e.ex.map(x=>x.replace(/-/g,'')).join(',')
+      : 'EXDATE;TZID='+TZ+':'+e.ex.map(x=>x.replace(/-/g,'')+'T'+(e.start||'09:00').replace(':','')+'00').join(','));
+  } else g.recurrence=[];
+  return g;
+}
+function gLocal(t){ const d=new Date(t); return {date:ymd(d), time:pad(d.getHours())+':'+pad(d.getMinutes())}; }
+function fromGoogle(g,prev){
+  const p=(g.extendedProperties&&g.extendedProperties.private)||{};
+  const e={id:prev?prev.id:'g_'+g.id, gid:g.id, title:g.summary||'（無標題）', location:g.location||'', note:g.description||'',
+    cat:(p.hiziCat&&CATS.some(c=>c.id===p.hiziCat))?p.hiziCat:(prev&&CATS.some(c=>c.id===prev.cat)&&colorIdFor(prev.cat)===(g.colorId||'')?prev.cat:catForColorId(g.colorId)),
+    kind:p.hiziKind||'normal'};
+  if(g.start&&g.start.date){ e.allDay=true; e.date=g.start.date; e.start=''; e.end=''; }
+  else { const s=gLocal(g.start.dateTime), en=gLocal(g.end.dateTime); e.allDay=false; e.date=s.date; e.start=s.time; e.end=en.date===s.date?en.time:'23:59'; }
+  const ov=g.reminders&&g.reminders.overrides;
+  e.remind = (g.reminders&&g.reminders.useDefault) ? 30 : (ov&&ov.length?Math.min(...ov.map(o=>o.minutes)):-1);
+  e.repeat={type:'none'}; const ex=[];
+  (g.recurrence||[]).forEach(line=>{
+    if(line.startsWith('RRULE:')){
+      const kv=Object.fromEntries(line.slice(6).split(';').map(x=>x.split('=')));
+      const t={DAILY:'daily',WEEKLY:'weekly',MONTHLY:'monthly',YEARLY:'yearly'}[kv.FREQ]||'none';
+      e.repeat={type:t};
+      if(t==='weekly') e.repeat.days = kv.BYDAY ? kv.BYDAY.split(',').map(x=>BYD.indexOf(x.slice(-2))).filter(i=>i>=0) : [parse(e.date).getDay()];
+      if(kv.UNTIL){ const u=kv.UNTIL; e.repeat.until = u.length===8 ? `${u.slice(0,4)}-${u.slice(4,6)}-${u.slice(6,8)}` : ymd(new Date(Date.UTC(+u.slice(0,4),+u.slice(4,6)-1,+u.slice(6,8),+u.slice(9,11)||0,+u.slice(11,13)||0,+u.slice(13,15)||0))); }
+    } else if(line.startsWith('EXDATE')){ (line.split(':')[1]||'').split(',').forEach(v=>{ if(v.length>=8) ex.push(`${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}`); }); }
+  });
+  if(ex.length) e.ex=ex;
+  if(prev&&prev.rex) e.rex=prev.rex;
+  if(g.recurringEventId){ e.inst=true; e.repeat={type:'none'}; delete e.ex; }
+  return e;
+}
+
+/* ---- 待辦 ⇄ Google Tasks ---- */
+function normTd(x){ return JSON.stringify([x.text,x.due||null,x.due?(x.time||''):'',x.note||'',!!x.done]); }
+function tdToGoogle(x){
+  const b={title:x.text, notes:(x.due&&x.time?'⏰'+x.time+'\n':'')+(x.note||''), status:x.done?'completed':'needsAction', due:x.due?x.due+'T00:00:00.000Z':null};
+  if(!x.done) b.completed=null; return b;
+}
+function tdFromGoogle(t,prev){
+  let notes=t.notes||'', time=''; const m=notes.match(/^⏰(\d{1,2}:\d{2})\n?/); if(m){ time=m[1].padStart(5,'0'); notes=notes.slice(m[0].length); }
+  return {id:prev?prev.id:'t_'+t.id, tid:t.id, text:t.title||'（無標題）', due:t.due?t.due.slice(0,10):null, time:t.due?time:'', note:notes,
+    done:t.status==='completed', doneAt:t.completed?Date.parse(t.completed):null, created:prev?prev.created:(Date.parse(t.updated)||Date.now())};
+}
+function replaceObj(target,src){ Object.keys(target).forEach(k=>delete target[k]); Object.assign(target,src); }
+
+/* ---- 同步流程 ---- */
+let gBusy=false, gAgain=false, gTimer=null, gStatus='off', gErr='';
+function scheduleSync(ms){ if(!gState||!gState.on) return; clearTimeout(gTimer); gTimer=setTimeout(()=>gSync(), ms??1500); }
+async function gSync(){
+  if(!gState.on) return;
+  if(gBusy){ gAgain=true; return; }
+  if(!navigator.onLine){ setGStatus('offline'); return; }
+  if(!gTokValid()){ setGStatus('auth'); return; }
+  gBusy=true; setGStatus('syncing'); let changed=false;
+  try{
+    await gPushEvents();
+    if(await gPullEvents()) changed=true;
+    if(await gSyncTodos()) changed=true;
+    gState.lastSync=Date.now(); gSaveState(); setGStatus('ok');
+  }catch(e){ console.warn('sync',e); setGStatus(e.auth?'auth':e.offline?'offline':'error', e.message); }
+  finally{ gBusy=false; persistEvents(); persistTodos(); gSaveState(); }
+  if(changed) safeRender();
+  if(gAgain){ gAgain=false; scheduleSync(400); }
+}
+async function gPushEvents(){
+  const base=`${CAL_API}/calendars/${encodeURIComponent(gState.calId)}/events`;
+  for(const e of events.slice()){
+    if(e.demo) continue;
+    const n=normEv(e), sh=gShadow.ev[e.id];
+    if(e.gid && sh && sh.n===n) continue;
+    try{
+      if(!e.gid){ const r=await gapi('POST',base,toGoogle(e)); e.gid=r.id; }
+      else { const b=toGoogle(e); if(e.inst) delete b.recurrence; await gapi('PATCH',`${base}/${encodeURIComponent(e.gid)}`,b); }
+      gShadow.ev[e.id]={n,gid:e.gid}; persistEvents(); gSaveState();
+    }catch(err){ if(err.status===404||err.status===410){ delete e.gid; delete e.inst; delete gShadow.ev[e.id]; gAgain=true; } else throw err; }
+  }
+  const ids=new Set(events.map(e=>e.id));
+  for(const [id,sh] of Object.entries(gShadow.ev)){
+    if(ids.has(id)) continue;
+    try{ if(sh.gid) await gapi('DELETE',`${base}/${encodeURIComponent(sh.gid)}`); }catch(err){ if(!(err.status===404||err.status===410)) throw err; }
+    delete gShadow.ev[id]; gSaveState();
+  }
+}
+async function gPullEvents(){
+  const base=`${CAL_API}/calendars/${encodeURIComponent(gState.calId)}/events`;
+  const full=!gState.syncToken; let items=[], pt=null, next=null;
+  do{
+    const q=new URLSearchParams({maxResults:'2500'});
+    if(gState.syncToken){ q.set('syncToken',gState.syncToken); q.set('showDeleted','true'); }
+    if(pt) q.set('pageToken',pt);
+    let r; try{ r=await gapi('GET',base+'?'+q); }
+    catch(err){ if(err.status===410){ gState.syncToken=null; return gPullEvents(); } throw err; }
+    items.push(...(r.items||[])); pt=r.nextPageToken; if(r.nextSyncToken) next=r.nextSyncToken;
+  }while(pt);
+  let changed=false;
+  const byGid=new Map(events.filter(e=>e.gid).map(e=>[e.gid,e]));
+  const dirty=e=>!gShadow.ev[e.id] || gShadow.ev[e.id].n!==normEv(e);
+  const apply=(g,prev,inst)=>{
+    if(g.status==='cancelled'){ if(prev && !dirty(prev)){ events=events.filter(x=>x!==prev); byGid.delete(g.id); delete gShadow.ev[prev.id]; changed=true; } return; }
+    if(prev && dirty(prev)) return;
+    const e=fromGoogle(g,prev);
+    if(prev){ if(JSON.stringify(prev)!==JSON.stringify(e)){ replaceObj(prev,e); changed=true; } }
+    else { events.push(e); byGid.set(g.id,e); changed=true; }
+    gShadow.ev[e.id]={n:normEv(e),gid:g.id};
+  };
+  items.filter(g=>!g.recurringEventId).forEach(g=>apply(g,byGid.get(g.id)));
+  items.filter(g=>g.recurringEventId).forEach(g=>{
+    const m=byGid.get(g.recurringEventId), o=g.originalStartTime;
+    const od=o&&(o.date||(o.dateTime&&gLocal(o.dateTime).date));
+    if(m&&od&&!(m.rex||[]).includes(od)){ m.rex=[...(m.rex||[]),od]; changed=true; }
+    apply(g,byGid.get(g.id),true);
+  });
+  if(full){ const seen=new Set(items.map(g=>g.id));
+    events=events.filter(e=>{ if(e.gid&&!seen.has(e.gid)&&!dirty(e)){ delete gShadow.ev[e.id]; changed=true; return false; } return true; }); }
+  if(next) gState.syncToken=next;
+  return changed;
+}
+async function gSyncTodos(){
+  const base=`${TASK_API}/lists/${encodeURIComponent(gState.listId)}/tasks`;
+  for(const x of todos.slice()){
+    if(x.demo) continue;
+    const n=normTd(x), sh=gShadow.td[x.id];
+    if(x.tid && sh && sh.n===n) continue;
+    try{
+      if(!x.tid){ const r=await gapi('POST',base,tdToGoogle(x)); x.tid=r.id; }
+      else await gapi('PATCH',`${base}/${encodeURIComponent(x.tid)}`,tdToGoogle(x));
+      gShadow.td[x.id]={n,tid:x.tid}; persistTodos(); gSaveState();
+    }catch(err){ if(err.status===404||err.status===410){ delete x.tid; delete gShadow.td[x.id]; gAgain=true; } else throw err; }
+  }
+  const ids=new Set(todos.map(x=>x.id));
+  for(const [id,sh] of Object.entries(gShadow.td)){
+    if(ids.has(id)) continue;
+    try{ if(sh.tid) await gapi('DELETE',`${base}/${encodeURIComponent(sh.tid)}`); }catch(err){ if(!(err.status===404||err.status===410)) throw err; }
+    delete gShadow.td[id]; gSaveState();
+  }
+  let items=[], pt=null;
+  do{ const q=new URLSearchParams({maxResults:'100',showCompleted:'true',showHidden:'true'}); if(pt) q.set('pageToken',pt);
+    const r=await gapi('GET',base+'?'+q); items.push(...(r.items||[])); pt=r.nextPageToken; }while(pt);
+  let changed=false; const seen=new Set();
+  const byTid=new Map(todos.filter(x=>x.tid).map(x=>[x.tid,x]));
+  const dirty=x=>!gShadow.td[x.id] || gShadow.td[x.id].n!==normTd(x);
+  for(const t of items){
+    if(t.deleted) continue; seen.add(t.id);
+    const prev=byTid.get(t.id); if(prev&&dirty(prev)) continue;
+    const x=tdFromGoogle(t,prev), n=normTd(x);
+    if(prev){ if(normTd(prev)!==n){ Object.assign(prev,x); changed=true; } } else { todos.push(x); changed=true; }
+    gShadow.td[x.id]={n,tid:t.id};
+  }
+  todos=todos.filter(x=>{ if(x.tid&&!seen.has(x.tid)&&!dirty(x)){ delete gShadow.td[x.id]; changed=true; return false; } return true; });
+  return changed;
+}
+async function gConnect(){
+  setGStatus('syncing');
+  try{
+    const cl=await gapi('GET',`${CAL_API}/users/me/calendarList?maxResults=250`);
+    let cal=(cl.items||[]).find(c=>c.summary==='日子' && (c.accessRole==='owner'||c.accessRole==='writer'));
+    if(!cal) cal=await gapi('POST',`${CAL_API}/calendars`,{summary:'日子', timeZone:TZ, description:'由「日子」行事曆 App 建立'});
+    const ls=await gapi('GET',`${TASK_API}/users/@me/lists?maxResults=100`);
+    let tl=(ls.items||[]).find(l=>l.title==='日子');
+    if(!tl) tl=await gapi('POST',`${TASK_API}/users/@me/lists`,{title:'日子'});
+    events=events.filter(e=>!e.demo); todos=todos.filter(x=>!x.demo);
+    events.forEach(e=>{ delete e.gid; delete e.inst; delete e.rex; }); todos.forEach(x=>delete x.tid);
+    gState=Object.assign(gState,{on:true, calId:cal.id, listId:tl.id, syncToken:null, lastSync:0}); gShadow={ev:{},td:{}};
+    persistEvents(); persistTodos(); gSaveState();
+    await gSync(); safeRender();
+    if(gStatus==='ok') toast('已連上 Google，同步完成');
+  }catch(e){ setGStatus(e.auth?'auth':'error', e.message); toast('連線失敗：'+e.message, 4000); }
+}
+function gDisconnect(){
+  try{ if(gTok&&window.google&&google.accounts) google.accounts.oauth2.revoke(gTok.t,()=>{}); }catch(e){}
+  gTok=null; gSaveTok(); gState=Object.assign(gState,{on:false, syncToken:null}); gShadow={ev:{},td:{}}; gSaveState(); setGStatus('off');
+}
+
+/* ---- 狀態顯示 ---- */
+const G_ICON={
+  ok:'<path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 9.5 4.3 4.3 0 0 0 7 18z"/><path d="M9.5 13.5l2 2 3.5-3.5"/>',
+  syncing:'<path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 9.5 4.3 4.3 0 0 0 7 18z"/><path d="M10 12.5a2.5 2.5 0 0 1 4.3-.8M14 15a2.5 2.5 0 0 1-4.3.8"/>',
+  bad:'<path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 9.5 4.3 4.3 0 0 0 7 18z"/><path d="M12 11v3M12 16.2v.1"/>'};
+function setGStatus(s,msg){ gStatus=s; gErr=msg||''; renderSync(); }
+function renderSync(){
+  const b=$('#syncBtn'), bn=$('#gBanner'); if(!b) return;
+  if(!gState.on){ b.hidden=true; if(bn) bn.hidden=true; return; }
+  const map={ok:['ok','已同步'],syncing:['syncing','同步中'],auth:['bad','需重新登入'],offline:['bad','離線'],error:['bad','同步失敗'],off:['ok','']};
+  const [ic,tx]=map[gStatus]||map.ok;
+  b.hidden=false; b.className='syncpill '+gStatus;
+  b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${G_ICON[ic]}</svg>${tx}`;
+  if(bn) bn.hidden = gStatus!=='auth';
+}
+function safeRender(){
+  if(DRAG.on){ setTimeout(safeRender,800); return; }
+  const a=document.activeElement;
+  if(view==='todo' && a && a.id==='tdInput'){ renderTitle(); refreshTodoList(); return; }
+  if($('#sheet').classList.contains('on')){ const st=$('#main').scrollTop; render(); return; }
+  render();
+}
+async function gReauth(){
+  try{ await gLogin(); setGStatus('ok'); gSync(); }
+  catch(e){ toast(e.message+'，改用跳轉方式登入…',2500); setTimeout(()=>gRedirectLogin(false),1200); }
+}
+
 /* ========= 介面互動 ========= */
 function openSheet(){ $('#mask').classList.add('on'); $('#sheet').classList.add('on'); $('#sheet').scrollTop=0; }
 function closeSheet(){ $('#mask').classList.remove('on'); $('#sheet').classList.remove('on'); }
@@ -1036,10 +1374,22 @@ let tx=null, ty=null;
 $('#main').addEventListener('touchstart',e=>{ tx=e.touches[0].clientX; ty=e.touches[0].clientY; },{passive:true});
 $('#main').addEventListener('touchend',e=>{ if(tx===null) return; if(DRAG.on||justDragged){ tx=null; return; } const dx=e.changedTouches[0].clientX-tx, dy=e.changedTouches[0].clientY-ty; if(Math.abs(dx)>60 && Math.abs(dx)>Math.abs(dy)*1.5 && view!=='list' && view!=='tt' && view!=='todo') shift(dx<0?1:-1); tx=null; },{passive:true});
 let lastW=innerWidth; addEventListener('resize',()=>{ if(Math.abs(innerWidth-lastW)>50){ lastW=innerWidth; render(); } });
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ render(); checkReminders(); } });
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ render(); checkReminders(); scheduleSync(200); } });
+addEventListener('online',()=>scheduleSync(300));
+$('#syncBtn').onclick=()=>{ if(gStatus==='auth') gReauth(); else if(gStatus==='syncing') return; else gSync().then(()=>toast(gStatus==='ok'?'同步完成':gStatus==='offline'?'目前離線，連網後會自動同步':'同步失敗：'+gErr)); };
+$('#gBannerBtn').onclick=gReauth;
 
+gHandleRedirect();
 if(view==='month') cur=new Date(cur.getFullYear(),cur.getMonth(),1);
-render();
+render(); renderSync();
+if(gState.on || gClientId()) loadGIS().catch(()=>{});
+if(gPendingConnect) gConnect();
+else if(gState.on){
+  if(gTokValid()) gSync();
+  else if(!isStandalone() && navigator.onLine && !sessionStorage.getItem('hizi.g.silent')){ sessionStorage.setItem('hizi.g.silent','1'); gRedirectLogin(true); }
+  else setGStatus('auth');
+}
+setInterval(()=>{ if(!document.hidden) scheduleSync(0); }, 90000);
 checkReminders(); setInterval(checkReminders, 30000);
 setInterval(()=>{ if(view==='day'||view==='week') { const sc=$('.tg-scroll'), st=sc?sc.scrollTop:0; render(); const s2=$('.tg-scroll'); if(s2) s2.scrollTop=st; } }, 300000);
 if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
