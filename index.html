@@ -188,6 +188,26 @@ textarea.inp{min-height:70px;resize:vertical}
   .month-layout{display:grid;grid-template-columns:1fr 300px;gap:0;align-items:start}
   .month-layout .agenda{border-top:0;border-left:1px solid var(--line);min-height:100%}
 }
+/* 分類 */
+.chip.addchip{border-style:dashed;color:var(--blue);border-color:var(--blue)}
+.catnew{margin-top:10px;padding:12px;border-radius:14px;background:var(--paper2)}
+.cdot{width:22px;height:22px;flex:0 0 22px!important;border-radius:7px;background:var(--c);display:inline-block}
+.cdot.big{width:30px;height:30px;flex:0 0 30px!important;border-radius:9px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.swatches{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.sw{width:30px;height:30px;border-radius:50%;background:var(--c);position:relative;flex:0 0 30px}
+.sw.on::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2.5px solid var(--c)}
+.sw.custom{background:conic-gradient(#F28B8B,#F6CD5C,#9BC26B,#4FB8C9,#6E95CF,#B08DDB,#F28B8B);overflow:visible;cursor:pointer}
+.sw.custom.on{background:var(--c)}
+.sw.custom.on::after{border-color:var(--c)}
+.sw.custom::before{content:"＋";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:14px;text-shadow:0 0 3px rgba(0,0,0,.4)}
+.sw.custom input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0;padding:0}
+.catrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.catrow .catname{flex:1;min-width:0;padding:8px 10px}
+.catrow .cnt{font-size:12px;color:var(--sub);flex:0 0 auto}
+.catrow .catdel{width:30px;height:30px;border-radius:50%;color:var(--sub);flex:0 0 30px}
+.catrow .catpick,.catrow .catconfirm{flex:0 0 100%}
+.catrow .catconfirm{background:var(--delbg);border-radius:12px;padding:10px 12px}
+.addcat{width:100%;margin-top:12px;padding:12px;border-radius:12px;border:1.5px dashed var(--blue);color:var(--blue);font-size:15px}
 /* 待辦 */
 .todo-add{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;box-shadow:var(--shadow);margin:2px 2px 4px}
 .todo-add .row1{display:flex;align-items:center;gap:8px}
@@ -257,7 +277,7 @@ body.dragging{-webkit-user-select:none;user-select:none;cursor:grabbing}
 
 <script>
 /* ========= 基本資料 ========= */
-const CATS = [
+const DEFAULT_CATS = [
   {id:'work', name:'工作', c:'#6E95CF', f:'#fff'},
   {id:'life', name:'私人', c:'#F28B8B', f:'#fff'},
   {id:'kid',  name:'孩子', c:'#5DBB9A', f:'#fff'},
@@ -265,7 +285,10 @@ const CATS = [
   {id:'study',name:'學習', c:'#B08DDB', f:'#fff'},
   {id:'other',name:'其他', c:'#C9D46A', f:'#4A5014'},
 ];
-const catOf = id => CATS.find(c=>c.id===id) || CATS[5];
+let CATS = DEFAULT_CATS;
+const SWATCHES=['#6E95CF','#4FB8C9','#5DBB9A','#9BC26B','#C9D46A','#F6CD5C','#F5A35C','#F28B8B','#E86FA0','#B08DDB','#8C7AE6','#A1887F','#90A4AE','#5C6B7A'];
+function fgFor(hex){ const n=parseInt(hex.slice(1),16), r=n>>16&255, g=n>>8&255, b=n&255; return (0.299*r+0.587*g+0.114*b)/255>0.68?'#3A3A2A':'#fff'; }
+const catOf = id => { const c = CATS.find(c=>c.id===id) || CATS[0] || {id:'none',name:'未分類',c:'#90A4AE'}; return {...c, f:fgFor(c.c)}; };
 // 台灣國定假日（行政院人事行政總處公告，2026–2027）
 const HOL = {"20260101":"開國紀念日","20260215":"小年夜","20260216":"農曆除夕","20260217":"春節","20260218":"春節","20260219":"春節","20260220":"補假","20260227":"補假","20260228":"和平紀念日","20260403":"補假","20260404":"兒童節","20260405":"清明節","20260406":"補假","20260501":"勞動節","20260619":"端午節","20260925":"中秋節","20260928":"教師節","20261009":"補假","20261010":"國慶日","20261025":"光復節","20261026":"補假","20261225":"行憲紀念日","20270101":"開國紀念日","20270204":"小年夜","20270205":"農曆除夕","20270206":"春節","20270207":"春節","20270208":"春節","20270209":"補假","20270210":"補假","20270228":"和平紀念日","20270301":"補假","20270404":"兒童節","20270405":"清明節","20270406":"補假","20270430":"補假","20270501":"勞動節","20270609":"端午節","20270915":"中秋節","20270928":"教師節","20271010":"國慶日","20271011":"補假","20271025":"光復節","20271224":"補假","20271225":"行憲紀念日","20271231":"補假"};
 // 每年固定的國定紀念日（沒有公告資料的年份用這份）
@@ -316,7 +339,9 @@ function dayLabel(d){ // 月曆格子下方的小字：假日 > 農曆節日 > �
 /* ========= 資料儲存 ========= */
 const KEY='hizi.events.v1', SKEY='hizi.settings.v1', FKEY='hizi.fired.v1';
 let events = load(KEY, null);
-let settings = Object.assign({weekStart:1, lunar:true, theme:'auto'}, load(SKEY,{}));
+let settings = Object.assign({weekStart:1, lunar:true, theme:'auto', ttCat:'kid'}, load(SKEY,{}));
+function syncCats(){ if(!Array.isArray(settings.cats)||!settings.cats.length) settings.cats = DEFAULT_CATS.map(c=>({id:c.id,name:c.name,c:c.c})); CATS = settings.cats; }
+syncCats();
 function load(k,def){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch(e){ return def; } }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(events)); localStorage.setItem(SKEY, JSON.stringify(settings)); }catch(e){ toast('儲存失敗：瀏覽器空間不足'); } }
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -541,7 +566,7 @@ function gridHTML(n, filterCat){
     ${n===1?`<div class="card agenda">${agendaHTML(cur)}</div>`:''}`;
 }
 function ttHTML(){
-  return gridHTML(7,'kid') + `<div class="hint" style="padding:0 6px">課表顯示「孩子」分類的行程。新增時選「孩子」並設定每週重複，就會出現在這裡。</div>`;
+  const tc=CATS.find(c=>c.id===settings.ttCat); return gridHTML(7, tc?tc.id:'__none__') + `<div class="hint" style="padding:0 6px">${tc?`課表顯示「${esc(tc.name)}」分類的行程。新增時選這個分類並設定每週重複，就會出現在這裡。`:'請到 ⚙︎ 設定 → 分類管理，選擇課表要顯示哪個分類。'}可以在設定的「分類管理」更換。</div>`;
 }
 function listHTML(){
   const t=today(); let html='', lastM=-1, cnt=0;
@@ -686,7 +711,7 @@ function openEditor(id, dateStr, time){
   else {
     const st = time || (()=>{ const n=new Date(); return pad(Math.min(n.getHours()+1,23))+':00'; })();
     const en = +st.slice(0,2)>=23 ? '23:59' : pad(+st.slice(0,2)+1)+':'+st.slice(3);
-    draft={id:null,title:'',date:editingDate,allDay:false,start:st,end:en,location:'',note:'',cat:view==='tt'?'kid':'work',repeat:{type:view==='tt'?'weekly':'none',days:[parse(editingDate).getDay()]},kind:'normal',remind:30};
+    draft={id:null,title:'',date:editingDate,allDay:false,start:st,end:en,location:'',note:'',cat:view==='tt'&&CATS.some(c=>c.id===settings.ttCat)?settings.ttCat:(CATS.some(c=>c.id===lastCat)?lastCat:CATS[0].id),repeat:{type:view==='tt'?'weekly':'none',days:[parse(editingDate).getDay()]},kind:'normal',remind:30};
   }
   draft.repeat = draft.repeat||{type:'none'};
   renderEditor(!!ex); openSheet();
@@ -697,7 +722,7 @@ function renderEditor(isEdit){
   $('#sheet').innerHTML=`<div class="grab"></div>
   <div class="sh-top"><button class="txtbtn" id="cancel">取消</button><h2>${isEdit?'編輯行程':'新增行程'}</h2><button class="txtbtn pri" id="saveEv">儲存</button></div>
   <div class="f"><input class="inp title-inp" id="fTitle" placeholder="標題" value="${esc(d.title)}"></div>
-  <div class="f"><label class="l">分類</label><div class="chips" id="fCat">${CATS.map(c=>`<button class="chip ${d.cat===c.id?'on':''}" style="--c:${c.c};--f:${c.f}" data-v="${c.id}"><i></i>${c.name}</button>`).join('')}</div></div>
+  <div class="f"><label class="l">分類</label><div class="chips" id="fCat"></div>${newCatPanelHTML()}</div>
   <div class="f"><label class="l">類型</label><div class="chips" id="fKind">${[['normal','一般'],['milestone','◆ 里程碑'],['countdown','倒數天數']].map(([v,n])=>`<button class="chip ${d.kind===v?'on':''}" data-v="${v}">${n}</button>`).join('')}</div></div>
   <div class="f switch"><span>全天</span><button class="tog ${d.allDay?'on':''}" id="fAll"></button></div>
   <div class="f"><label class="l">日期</label><input type="date" class="inp" id="fDate" value="${d.date}"></div>
@@ -715,7 +740,7 @@ function renderEditor(isEdit){
   ${isEdit?`<button class="del" id="delEv">刪除行程</button>`:''}`;
 
   const S=$('#sheet');
-  S.querySelectorAll('#fCat .chip').forEach(b=>b.onclick=()=>{ d.cat=b.dataset.v; S.querySelectorAll('#fCat .chip').forEach(x=>x.classList.toggle('on',x===b)); });
+  renderCatChips(d); bindNewCat(d);
   S.querySelectorAll('#fKind .chip').forEach(b=>b.onclick=()=>{ d.kind=b.dataset.v; S.querySelectorAll('#fKind .chip').forEach(x=>x.classList.toggle('on',x===b)); });
   $('#fAll').onclick=e=>{ d.allDay=!d.allDay; e.target.classList.toggle('on',d.allDay); $('#timeRow').style.display=d.allDay?'none':''; };
   $('#fRep').onchange=e=>{ r.type=e.target.value; if(r.type==='weekly'&&!(r.days&&r.days.length)) r.days=[parse($('#fDate').value||d.date).getDay()];
@@ -734,7 +759,7 @@ function saveDraft(){
   d.date=$('#fDate').value||d.date; d.start=$('#fStart').value; d.end=$('#fEnd').value;
   if(!d.allDay && !d.start){ toast('請輸入開始時間，或改成全天'); return; }
   if(!d.allDay && d.end && d.end<d.start) d.end=d.start;
-  d.location=$('#fLoc').value.trim(); d.note=$('#fNote').value.trim(); d.remind=+$('#fRem').value;
+  lastCat=d.cat; d.location=$('#fLoc').value.trim(); d.note=$('#fNote').value.trim(); d.remind=+$('#fRem').value;
   d.repeat.until=$('#fUntil')?$('#fUntil').value||null:null;
   if(d.repeat.type==='weekly' && !(d.repeat.days&&d.repeat.days.length)) d.repeat.days=[parse(d.date).getDay()];
   if(d.id){ const i=events.findIndex(e=>e.id===d.id); delete d.demo; events[i]=d; }
@@ -759,11 +784,95 @@ function deleteDraft(){
   events=events.filter(x=>x.id!==d.id); save(); closeSheet(); render(); toast('已刪除');
 }
 
+/* ========= 分類 ========= */
+let lastCat = null;
+function renderCatChips(d){
+  const box=$('#fCat'); if(!box) return;
+  box.innerHTML = CATS.map(c=>`<button class="chip ${d.cat===c.id?'on':''}" style="--c:${c.c};--f:${fgFor(c.c)}" data-v="${c.id}"><i></i>${esc(c.name)}</button>`).join('')
+    + `<button class="chip addchip" id="catNewBtn">＋ 新增</button>`;
+  box.querySelectorAll('.chip[data-v]').forEach(b=>b.onclick=()=>{ d.cat=b.dataset.v; box.querySelectorAll('.chip[data-v]').forEach(x=>x.classList.toggle('on',x===b)); });
+  $('#catNewBtn').onclick=()=>{ const p=$('#catNew'); p.style.display = p.style.display==='none'?'':'none'; if(p.style.display==='') $('#cnName').focus(); };
+}
+function swatchHTML(cur, id){
+  return `<div class="swatches" id="${id}">${SWATCHES.map(c=>`<button class="sw ${c.toLowerCase()===String(cur).toLowerCase()?'on':''}" style="--c:${c}" data-c="${c}" aria-label="${c}"></button>`).join('')}
+    <label class="sw custom" title="自訂顏色"><input type="color" value="${cur}"></label></div>`;
+}
+function bindSwatches(id, onPick){
+  const box=document.getElementById(id); if(!box) return;
+  const mark=c=>{ box.querySelectorAll('.sw[data-c]').forEach(b=>b.classList.toggle('on', b.dataset.c.toLowerCase()===c.toLowerCase())); const cu=box.querySelector('.custom'); cu.classList.toggle('on', !SWATCHES.some(x=>x.toLowerCase()===c.toLowerCase())); cu.style.setProperty('--c', c); };
+  box.querySelectorAll('.sw[data-c]').forEach(b=>b.onclick=e=>{ e.preventDefault(); onPick(b.dataset.c); mark(b.dataset.c); box.querySelector('input[type=color]').value=b.dataset.c; });
+  const inp=box.querySelector('input[type=color]'); inp.oninput=inp.onchange=()=>{ onPick(inp.value); mark(inp.value); };
+  mark(box.querySelector('input[type=color]').value);
+}
+function unusedColor(){ return SWATCHES.find(c=>!CATS.some(x=>x.c.toLowerCase()===c.toLowerCase())) || SWATCHES[Math.floor(Math.random()*SWATCHES.length)]; }
+function newCatPanelHTML(){
+  const c=unusedColor();
+  return `<div id="catNew" class="catnew" style="display:none" data-c="${c}">
+    <div class="row" style="align-items:center"><span class="cdot" id="cnDot" style="--c:${c}"></span><input class="inp" id="cnName" placeholder="新分類名稱，例如：運動" maxlength="10"><button class="txtbtn pri" id="cnAdd" style="flex:0 0 auto">新增</button></div>
+    ${swatchHTML(c,'cnSw')}</div>`;
+}
+function addCategory(name, color){
+  const c={id:'c'+uid(), name, c:color}; CATS.push(c); settings.cats=CATS; save(); return c;
+}
+function bindNewCat(d){
+  const panel=$('#catNew'); if(!panel) return;
+  bindSwatches('cnSw', c=>{ panel.dataset.c=c; $('#cnDot').style.setProperty('--c',c); });
+  const go=()=>{ const n=$('#cnName').value.trim(); if(!n){ toast('請輸入分類名稱'); $('#cnName').focus(); return; }
+    if(CATS.some(x=>x.name===n)){ toast('已經有這個分類了'); return; }
+    const c=addCategory(n, panel.dataset.c); d.cat=c.id; renderCatChips(d);
+    $('#cnName').value=''; panel.style.display='none'; const nc=unusedColor(); panel.dataset.c=nc; $('#cnDot').style.setProperty('--c',nc);
+    toast(`已新增分類「${n}」`); };
+  $('#cnAdd').onclick=go; $('#cnName').onkeydown=e=>{ if(e.key==='Enter'&&!e.isComposing){ e.preventDefault(); go(); } };
+}
+function openCatManager(){
+  const used=id=>events.filter(e=>e.cat===id).length;
+  $('#sheet').innerHTML=`<div class="grab"></div><div class="sh-top"><button class="txtbtn" id="cmBack">‹ 設定</button><h2>分類管理</h2><button class="txtbtn" id="cmDone">完成</button></div>
+    <p class="hint">點色塊換顏色，點名稱可以直接改名。</p>
+    <div id="cmList">${CATS.map(c=>`<div class="catrow" data-id="${c.id}">
+      <button class="cdot big" style="--c:${c.c}" aria-label="換顏色"></button>
+      <input class="inp catname" value="${esc(c.name)}" maxlength="10">
+      <span class="cnt">${used(c.id)} 筆</span>
+      <button class="catdel" aria-label="刪除">✕</button>
+      <div class="catpick" style="display:none">${swatchHTML(c.c,'sw_'+c.id)}</div>
+      <div class="catconfirm" style="display:none"></div></div>`).join('')}</div>
+    <button class="addcat" id="cmAdd">＋ 新增分類</button>
+    <div class="setrow" style="margin-top:8px"><span>課表顯示的分類</span><select class="inp" id="cmTT" style="width:auto;padding:6px 10px">${CATS.map(c=>`<option value="${c.id}" ${settings.ttCat===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>`;
+  $('#cmBack').onclick=()=>{ render(); openSettings(); };
+  $('#cmDone').onclick=()=>{ closeSheet(); render(); };
+  $('#cmTT').onchange=e=>{ settings.ttCat=e.target.value; save(); };
+  $('#cmAdd').onclick=()=>{ const n='新分類'+(CATS.length+1); addCategory(n, unusedColor()); openCatManager();
+    const rows=document.querySelectorAll('.catrow'); const inp=rows[rows.length-1].querySelector('.catname'); inp.focus(); inp.select(); };
+  document.querySelectorAll('.catrow').forEach(row=>{
+    const id=row.dataset.id, c=CATS.find(x=>x.id===id);
+    row.querySelector('.cdot').onclick=()=>{ const p=row.querySelector('.catpick'); const open=p.style.display==='none';
+      document.querySelectorAll('.catpick').forEach(x=>x.style.display='none'); p.style.display=open?'':'none'; };
+    bindSwatches('sw_'+id, col=>{ c.c=col; row.querySelector('.cdot').style.setProperty('--c',col); save(); });
+    const nm=row.querySelector('.catname'); nm.onchange=nm.onblur=()=>{ const v=nm.value.trim(); if(v){ c.name=v; save(); } else nm.value=c.name; };
+    row.querySelector('.catdel').onclick=()=>{
+      if(CATS.length<=1){ toast('至少要保留一個分類'); return; }
+      const n=used(id), cf=row.querySelector('.catconfirm');
+      const others=CATS.filter(x=>x.id!==id);
+      cf.innerHTML = `<div class="hint">${n?`有 ${n} 筆行程是「${esc(c.name)}」，刪除後改成：`:`確定刪除「${esc(c.name)}」？`}</div>
+        <div class="row" style="align-items:center;margin-top:6px">${n?`<select class="inp" style="padding:6px 10px">${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>`:'<span></span>'}
+        <button class="txtbtn" data-x="no" style="flex:0 0 auto">取消</button><button class="txtbtn pri" data-x="yes" style="flex:0 0 auto;background:var(--red)">刪除</button></div>`;
+      cf.style.display='';
+      cf.querySelector('[data-x=no]').onclick=()=>{ cf.style.display='none'; };
+      cf.querySelector('[data-x=yes]').onclick=()=>{
+        const to = n ? cf.querySelector('select').value : others[0].id;
+        events.forEach(e=>{ if(e.cat===id) e.cat=to; });
+        CATS.splice(CATS.indexOf(c),1); settings.cats=CATS; if(settings.ttCat===id) settings.ttCat=to;
+        save(); openCatManager(); toast(`已刪除「${c.name}」`);
+      };
+    };
+  });
+}
+
 /* ========= 設定 ========= */
 function openSettings(){
   const demoN = events.filter(e=>e.demo).length + todos.filter(x=>x.demo).length;
   $('#sheet').innerHTML=`<div class="grab"></div><div class="sh-top"><span style="width:40px"></span><h2>設定</h2><button class="txtbtn" id="cl">完成</button></div>
     <div class="setrow"><span>外觀</span><div class="dl-chips" id="sTheme" style="margin:0">${[["auto","跟隨系統"],["light","淺色"],["dark","深色"]].map(([v,n])=>`<button data-v="${v}" class="${settings.theme===v?"on":""}">${n}</button>`).join("")}</div></div>
+    <div class="setrow"><span>分類管理</span><button class="txtbtn" id="sCats">${CATS.length} 個分類 ›</button></div>
     <div class="setrow"><span>顯示農曆</span><button class="tog ${settings.lunar?'on':''}" id="sLunar"></button></div>
     <div class="setrow"><span>一週從星期一開始</span><button class="tog ${settings.weekStart===1?'on':''}" id="sWeek"></button></div>
     <div class="setrow"><span>提醒通知</span><button class="txtbtn" id="sNoti">${notiState()}</button></div>
@@ -772,13 +881,14 @@ function openSettings(){
     ${demoN?`<div class="setrow"><span>範例資料（${demoN} 筆）</span><button class="txtbtn" id="sDemo" style="color:var(--rose)">全部清除</button></div>`:''}
     <p class="hint" style="margin-top:14px">長按行程（電腦上直接按住）就可以拖曳到別的日期或時間。<br>資料目前存在這台裝置的瀏覽器裡。換裝置時可用「匯出／匯入備份」搬資料；下一版會接上 Google 日曆，手機和平板就能自動同步。<br>共 ${events.length} 筆行程。</p>`;
   $('#cl').onclick=closeSheet;
+  $('#sCats').onclick=openCatManager;
   $('#sLunar').onclick=e=>{ settings.lunar=!settings.lunar; e.target.classList.toggle('on'); save(); render(); };
   document.querySelectorAll('#sTheme button').forEach(b=>b.onclick=()=>{ settings.theme=b.dataset.v; save(); applyTheme(); document.querySelectorAll('#sTheme button').forEach(x=>x.classList.toggle('on',x===b)); });
   $('#sWeek').onclick=e=>{ settings.weekStart=settings.weekStart===1?0:1; e.target.classList.toggle('on'); save(); render(); };
   $('#sNoti').onclick=async()=>{ await requestNoti(); $('#sNoti').textContent=notiState(); };
   $('#sExp').onclick=()=>{ const b=new Blob([JSON.stringify({app:'hizi',v:2,events,todos,settings},null,1)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=`行事曆備份-${ymd(new Date())}.json`; a.click(); };
   $('#sImp').onclick=()=>$('#impFile').click();
-  $('#impFile').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; try{ const j=JSON.parse(await f.text()); if(!Array.isArray(j.events)) throw 0; events=j.events; if(Array.isArray(j.todos)){ todos=j.todos; saveTodos(); } if(j.settings) settings=Object.assign(settings,j.settings); save(); applyTheme(); closeSheet(); render(); toast(`已匯入 ${events.length} 筆行程、${todos.length} 筆待辦`); }catch(err){ toast('檔案格式不正確'); } };
+  $('#impFile').onchange=async e=>{ const f=e.target.files[0]; if(!f) return; try{ const j=JSON.parse(await f.text()); if(!Array.isArray(j.events)) throw 0; events=j.events; if(Array.isArray(j.todos)){ todos=j.todos; saveTodos(); } if(j.settings) settings=Object.assign(settings,j.settings); syncCats(); save(); applyTheme(); closeSheet(); render(); toast(`已匯入 ${events.length} 筆行程、${todos.length} 筆待辦`); }catch(err){ toast('檔案格式不正確'); } };
   if(demoN) $('#sDemo').onclick=()=>{ events=events.filter(e=>!e.demo); todos=todos.filter(x=>!x.demo); saveTodos(); save(); closeSheet(); render(); toast('範例已清除'); };
   openSheet();
 }
