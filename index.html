@@ -475,7 +475,7 @@ function renderCountdown(){
     items.push({e,d,n});
   });
   items.sort((a,b)=>a.n-b.n);
-  const show = (view==='month'||view==='list') && items.length;
+  const show = view==='list' && items.length;   // 月檢視不顯示倒數／里程碑卡片
   $('#cdStrip').style.display = show?'flex':'none';
   const STK=['#98AE95','#C79F98','#C9AE88','#8A9CAA','#A69BB6'];
   $('#cdStrip').innerHTML = items.slice(0,8).map(({e,d,n},i)=>`
