@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="日子">
-<meta name="theme-color" content="#FFFFFF">
+<meta name="theme-color" content="#F6F1E8">
 <title>日子 · 行事曆</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -18,11 +18,11 @@
 <style>
 /* ===== 第三版：清爽彩色條 ===== */
 :root{
-  --bg:#FFFFFF; --paper:#FFFFFF; --paper2:#F5F6F8; --ink:#2F3337; --sub:#8A9099; --faint:#C2C7CE; --line:#EDEFF2;
+  --bg:#F6F1E8; --paper:#FBF7F0; --paper2:#EEE8DD; --ink:#3A3530; --sub:#8E867C; --faint:#C4BCB0; --line:#E7E0D4;
   --red:#EE5A5A; --blue:#3D8BFD; --rose:var(--red); --accent:var(--blue);
   --round:"Huninn","PingFang TC","Noto Sans TC",-apple-system,sans-serif; --hand:var(--round); --serif:var(--round); --sans:var(--round);
   --shadow:0 4px 18px rgba(30,40,60,.08); --hour:46px; --tabh:64px;
-  --card:#FFFFFF; --tabbg:rgba(255,255,255,.96); --selbg:#F3F7FF; --todaycol:#F7FAFF; --delbg:#FFF2F2; --dropbg:#E6F0FF; --mask:rgba(20,25,35,.3);
+  --card:#FBF7F0; --tabbg:rgba(246,241,232,.96); --selbg:#EDEDEA; --todaycol:#F1EEE6; --delbg:#F9E9E4; --dropbg:#E3E9F2; --mask:rgba(20,25,35,.3);
   color-scheme:light;
 }
 html[data-theme="dark"]{
@@ -383,7 +383,7 @@ const darkMQ = matchMedia('(prefers-color-scheme: dark)');
 function isDark(){ return settings.theme==='dark' || (settings.theme==='auto' && darkMQ.matches); }
 function applyTheme(){
   const dk=isDark(); document.documentElement.dataset.theme = dk?'dark':'light';
-  document.querySelector('meta[name=theme-color]').setAttribute('content', dk?'#141619':'#FFFFFF');
+  document.querySelector('meta[name=theme-color]').setAttribute('content', dk?'#141619':'#F6F1E8');
   const b=document.getElementById('themeBtn');
   if(b) b.innerHTML = dk
     ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>'
