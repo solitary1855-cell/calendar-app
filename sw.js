@@ -1,5 +1,5 @@
 // 離線快取：先用網路，沒網路時用快取
-const CACHE = 'hizi-v10';
+const CACHE = 'hizi-v11';
 const FILES = ['./', './index.html', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

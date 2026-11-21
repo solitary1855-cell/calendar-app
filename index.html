@@ -357,6 +357,7 @@ let settings = Object.assign({weekStart:1, lunar:true, theme:'auto', ttCat:'kid'
 function syncCats(){ if(!Array.isArray(settings.cats)||!settings.cats.length) settings.cats = DEFAULT_CATS.map(c=>({id:c.id,name:c.name,c:c.c})); CATS = settings.cats; }
 syncCats();
 // Google 同步狀態（要放在 save() 第一次被呼叫之前）
+const G_SYNC_UI = false;  // 改成 true 會在設定頁顯示 Google 同步區塊
 const G_CLIENT_ID = '';   // ← 在 Google Cloud 建好後填入「用戶端 ID」
 const GK={tok:'hizi.g.token', st:'hizi.g.state', sh:'hizi.g.shadow'};
 let gState = load(GK.st, {});
@@ -903,7 +904,7 @@ function openSettings(){
     <div class="setrow"><span>匯出備份</span><button class="txtbtn" id="sExp">下載檔案</button></div>
     <div class="setrow"><span>匯入備份</span><button class="txtbtn" id="sImp">選擇檔案</button><input type="file" id="impFile" accept=".json,application/json" hidden></div>
     ${demoN?`<div class="setrow"><span>範例資料（${demoN} 筆）</span><button class="txtbtn" id="sDemo" style="color:var(--rose)">全部清除</button></div>`:''}
-    <p class="hint" style="margin-top:14px">長按行程（電腦上直接按住）就可以拖曳到別的日期或時間。<br>${gState.on?'行程存在 Google 日曆「日子」、待辦存在 Google Tasks「日子」清單，手機、平板、電腦會自動同步。':'目前資料只存在這台裝置。連上 Google 後，手機、平板、電腦就能自動同步。'}<br>共 ${events.length} 筆行程。</p>`;
+    <p class="hint" style="margin-top:14px">長按行程（電腦上直接按住）就可以拖曳到別的日期或時間。<br>${gState.on?'行程存在 Google 日曆「日子」、待辦存在 Google Tasks「日子」清單，手機、平板、電腦會自動同步。':'資料存在這台裝置裡。要搬到其他裝置，可以用「匯出備份」再到另一台「匯入備份」。'}<br>共 ${events.length} 筆行程。</p>`;
   $('#cl').onclick=closeSheet;
   $('#sCats').onclick=openCatManager;
   bindGSettings();
@@ -919,6 +920,7 @@ function openSettings(){
 }
 
 function gSettingsHTML(){
+  if(!G_SYNC_UI && !gState.on) return '';
   if(gClientId()) loadGIS().catch(()=>{});
   const last = gState.lastSync ? new Date(gState.lastSync) : null;
   const lastTx = last ? `${last.getMonth()+1}/${last.getDate()} ${pad(last.getHours())}:${pad(last.getMinutes())}` : '尚未同步';
